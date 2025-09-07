@@ -19,13 +19,17 @@
         <module>steam-import-service</module>
         <module>achievement-service</module>
         <module>stats-service</module>
+        <module>gamevault-shared</module>
     </modules>
 
     <properties>
         <java.version>17</java.version>
         <spring.boot.version>3.5.5</spring.boot.version>
+        <spring.kafka>3.3.1</spring.kafka>
         <spring.cloud.version>2023.0.3</spring.cloud.version>
         <lombok.version>1.18.34</lombok.version>
+        <logback.version>1.5.18</logback.version>
+        <io.jsonwebtoken.version>0.12.6</io.jsonwebtoken.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
     </properties>
@@ -41,6 +45,13 @@
                 <scope>import</scope>
             </dependency>
 
+            <!-- Spring Kafka -->
+            <dependency>
+                <groupId>org.springframework.kafka</groupId>
+                <artifactId>spring-kafka</artifactId>
+                <version>${spring.kafka}</version>
+            </dependency>
+
             <!-- Spring Cloud BOM -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
@@ -50,11 +61,37 @@
                 <scope>import</scope>
             </dependency>
 
+            <!-- JWT -->
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${io.jsonwebtoken.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${io.jsonwebtoken.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${io.jsonwebtoken.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+
             <!-- Others -->
             <dependency>
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
+                <scope>provided</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>${logback.version}</version>
                 <scope>provided</scope>
             </dependency>
         </dependencies>
@@ -78,6 +115,9 @@
                     <version>3.10.1</version>
                     <configuration>
                         <release>${java.version}</release>
+                        <compilerArgs>
+                            <arg>-parameters</arg>
+                        </compilerArgs>
                         <annotationProcessorPaths>
                             <path>
                                 <groupId>org.projectlombok</groupId>
