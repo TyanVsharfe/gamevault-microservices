@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -22,7 +23,7 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
@@ -105,47 +106,61 @@ public class AuthorizationServerConfig {
     }
 
     @Bean
-    public RegisteredClientRepository registeredClientRepository(PasswordEncoder passwordEncoder) {
-        RegisteredClient achievementClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId("achievement-service")
-                .clientSecret(passwordEncoder.encode("achievement-secret-2025"))
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
-                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-                .scope("ACHIEVEMENT_INIT")
-                .clientSettings(ClientSettings.builder()
-                        .requireAuthorizationConsent(false)
-                        .build())
-                .tokenSettings(TokenSettings.builder()
-                        .accessTokenTimeToLive(Duration.ofHours(1))
-                        .build())
-                .build();
+    public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbcTemplate,
+                                                                 PasswordEncoder passwordEncoder) {
+        JdbcRegisteredClientRepository clientRepository =
+                new JdbcRegisteredClientRepository(jdbcTemplate);
 
-        RegisteredClient userClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId("user-client")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                .redirectUri("http://localhost:3000/callback")
-                .redirectUri("http://localhost:3000/login")
-                .redirectUri("http://localhost:3000/auth/callback") // Добавьте все возможные redirect URIs
-                .postLogoutRedirectUri("http://localhost:3000/")
-                .scope(OidcScopes.OPENID)
-                .scope(OidcScopes.PROFILE)
-                .scope("USER")
-                .scope("ADMIN")
-                .clientSettings(ClientSettings.builder()
-                        .requireProofKey(true)
-                        .requireAuthorizationConsent(false)
-                        .build())
-                .tokenSettings(TokenSettings.builder()
-                        .accessTokenTimeToLive(Duration.ofHours(3))
-                        .refreshTokenTimeToLive(Duration.ofDays(14))
-                        .reuseRefreshTokens(false)
-                        .build())
-                .build();
+        if (clientRepository.findByClientId("achievement-service") == null) {
+            RegisteredClient achievementClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                    .clientId("achievement-service")
+                    .clientSecret(passwordEncoder.encode("achievement-secret-2025"))
+                    .clientAuthenticationMethods(methods -> {
+                        methods.add(ClientAuthenticationMethod.CLIENT_SECRET_BASIC);
+                        methods.add(ClientAuthenticationMethod.CLIENT_SECRET_POST);
+                    })
+                    .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                    .scope("ACHIEVEMENT_INIT")
+                    .clientSettings(ClientSettings.builder()
+                            .requireAuthorizationConsent(false)
+                            .build())
+                    .tokenSettings(TokenSettings.builder()
+                            .accessTokenTimeToLive(Duration.ofHours(1))
+                            .build())
+                    .build();
 
-        return new InMemoryRegisteredClientRepository(achievementClient, userClient);
+            clientRepository.save(achievementClient);
+        }
+
+        if (clientRepository.findByClientId("user-client") == null) {
+            RegisteredClient userClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                    .clientId("user-client")
+                    .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                    .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                    .redirectUri("http://localhost:3000/callback")
+                    .redirectUri("http://localhost:3000/login")
+                    .redirectUri("http://localhost:3000/auth/callback")
+                    .postLogoutRedirectUri("http://localhost:3000/")
+                    .scope(OidcScopes.OPENID)
+                    .scope(OidcScopes.PROFILE)
+                    .scope("USER")
+                    .scope("ADMIN")
+                    .clientSettings(ClientSettings.builder()
+                            .requireProofKey(true)
+                            .requireAuthorizationConsent(false)
+                            .build())
+                    .tokenSettings(TokenSettings.builder()
+                            .accessTokenTimeToLive(Duration.ofHours(3))
+                            .refreshTokenTimeToLive(Duration.ofDays(14))
+                            .reuseRefreshTokens(false)
+                            .build())
+                    .build();
+
+            clientRepository.save(userClient);
+        }
+
+        return clientRepository;
     }
 
     @Bean
@@ -199,7 +214,7 @@ public class AuthorizationServerConfig {
                         try {
                             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                             if (userDetails instanceof User user) {
-                                claims.put("userId", user.getId().toString());
+                                claims.put("user_id", user.getId().toString());
                                 Collection<? extends GrantedAuthority> authorities = user.getAuthorities();
                                 List<String> scopes = authorities.stream()
                                         .map(GrantedAuthority::getAuthority)

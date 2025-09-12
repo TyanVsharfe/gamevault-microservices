@@ -54,6 +54,7 @@ app:
   kafka:
     topics:
       user-event: user-events
+      user-game-event: user-game-events
 
 auth:
   service:
@@ -61,10 +62,9 @@ auth:
 
 init:
   achievements:
-    enabled: true
+    enabled: false
     batch-size: 1000
     users-endpoint: /users/uuids
-
 
 ---
 

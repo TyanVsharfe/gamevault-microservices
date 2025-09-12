@@ -3,7 +3,8 @@ package com.gamevault.authservice.service;
 import com.gamevault.authservice.db.repository.UserRepository;
 import com.gamevault.authservice.dto.UserForm;
 import com.gamevault.authservice.db.model.User;
-import com.gamevault.events.user.UserCreatedEvent;
+import com.gamevault.authservice.dto.UserInfo;
+import com.gamevault.events.user.UserEvent;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityExistsException;
 import lombok.extern.slf4j.Slf4j;
@@ -23,13 +24,12 @@ import java.util.UUID;
 @Service
 public class UserService implements UserDetailsService {
     private final UserRepository userRepository;
-    private final UserProducer userProducer;
+    private final UserEventProducer userEventProducer;
     private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository, UserProducer userProducer, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, UserEventProducer userEventProducer, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
-        //this.achievementService = achievementService;
-        this.userProducer = userProducer;
+        this.userEventProducer = userEventProducer;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -47,7 +47,7 @@ public class UserService implements UserDetailsService {
         return userRepository.findAllUserUUIDs(pageable);
     }
 
-    public User add(UserForm user) {
+    public UserInfo add(UserForm user) {
         log.info("Attempting to register user: {}", user.username());
 
         if (userRepository.findByUsername(user.username()).isPresent()) {
@@ -60,8 +60,13 @@ public class UserService implements UserDetailsService {
         User saved = userRepository.save(newUser);
         log.info("User '{}' registered successfully.", user.username());
 
-        userProducer.InitializeUserAchievements(new UserCreatedEvent(saved.getId()));
-        return saved;
+        userEventProducer.InitializeUserAchievements(new UserEvent(
+                saved.getId(),
+                saved.getUsername(),
+                saved.getAvatarUrl(),
+                UserEvent.EventType.USER_CREATED
+        ));
+        return new UserInfo(saved);
     }
 
     @PostConstruct

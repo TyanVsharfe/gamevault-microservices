@@ -1,6 +1,5 @@
 package com.gamevault.authservice.controller;
 
-import com.gamevault.authservice.db.model.User;
 import com.gamevault.authservice.dto.*;
 import com.gamevault.authservice.service.UserService;
 import org.springframework.data.domain.Page;
@@ -21,7 +20,7 @@ public class UserController {
     }
 
     @PostMapping("/registration")
-    public User register(@RequestBody UserForm user) {
+    public UserInfo register(@RequestBody UserForm user) {
         return userDetailsService.add(user);
     }
 

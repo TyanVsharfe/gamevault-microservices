@@ -23,14 +23,14 @@ public class OAuth2Config {
     @Bean
     public WebClient authServiceWebClient(WebClient.Builder webClientBuilder,
                                           OAuth2AuthorizedClientManager authorizedClientManager,
-                                          @Value("${auth.service.url}") String authServiseUrl) {
+                                          @Value("${auth.service.url}") String authServiceUrl) {
         ServletOAuth2AuthorizedClientExchangeFilterFunction oauth2Client =
                 new ServletOAuth2AuthorizedClientExchangeFilterFunction(authorizedClientManager);
 
         oauth2Client.setDefaultClientRegistrationId("achievement-service");
 
         return webClientBuilder
-                .baseUrl(authServiseUrl)
+                .baseUrl(authServiceUrl)
                 .apply(oauth2Client.oauth2Configuration())
                 .build();
     }

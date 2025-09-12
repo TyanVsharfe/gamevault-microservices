@@ -31,6 +31,8 @@ public class User implements UserDetails {
     @Setter
     private String email;
     @Setter
+    private String avatarUrl;
+    @Setter
     private Subscription subscription;
     @Setter
     @ElementCollection(fetch = FetchType.EAGER)

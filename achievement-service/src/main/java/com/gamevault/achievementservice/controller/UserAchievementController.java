@@ -33,7 +33,7 @@ public class UserAchievementController {
     public ResponseEntity<Iterable<UserAchievementDTO>> getUserAchievements(HttpServletRequest request,
                                                                             Authentication authentication) {
         Jwt jwt = (Jwt) authentication.getPrincipal();
-        UUID userId = UUID.fromString(jwt.getClaim("userId").toString());
+        UUID userId = UUID.fromString(jwt.getClaim("user_id").toString());
         Locale locale = request.getLocale();
         String lang = locale.getLanguage();
         return ResponseEntity.ok(achievementService.getUserAchievements(userId, lang));

@@ -1,0 +1,89 @@
+spring:
+  application:
+    name: user-game-service
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    defer-datasource-initialization: true
+  datasource:
+    username: root
+    password: root
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+    consumer:
+      group-id: achievement
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.gamevault.events.user
+
+  security:
+    oauth2:
+      client:
+        registration:
+          user-game-service:
+            client-id: user-game-service
+            client-secret: user-game-service-2025
+            authorization-grant-type: client_credentials
+            scope: ACHIEVEMENT_INIT
+        provider:
+          auth-service:
+            token-uri: http://localhost:8080/oauth2/token
+            issuer-uri: http://localhost:8080
+          user-game-service:
+            issuer-uri: http://localhost:8080
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080
+
+  profiles:
+    active: dev
+
+server:
+  port: 8083
+  servlet:
+    context-path: /api/v1
+    session:
+      cookie:
+        same-site: strict
+
+app:
+  kafka:
+    topics:
+      user-event: user-events
+      user-game-event: user-game-events
+
+igdb:
+  service:
+    url: http://localhost:8082/api/v1
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:h2:file:./user-game-service/database
+    driver-class-name: org.h2.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:postgresql://localhost:5432/gamevault
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
