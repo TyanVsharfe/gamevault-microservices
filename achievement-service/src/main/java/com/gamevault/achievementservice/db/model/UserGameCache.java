@@ -11,18 +11,22 @@ import java.util.UUID;
 @Entity
 @Getter
 @NoArgsConstructor
-@EqualsAndHashCode
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "user_games")
 @IdClass(UserGameCacheId.class)
 public class UserGameCache {
     @Id
+    @EqualsAndHashCode.Include
     @Column(name = "user_id", nullable = false)
     private UUID user;
-    @Id
 
+    @Id
+    @EqualsAndHashCode.Include
     @Column(name = "game_id", nullable = false)
     private Long gameId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private GameStatus status;
 
     public UserGameCache(UUID user, Long gameId, GameStatus status) {

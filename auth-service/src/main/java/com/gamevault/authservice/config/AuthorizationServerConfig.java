@@ -6,7 +6,6 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
-import org.hibernate.TypeMismatchException;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -23,6 +22,7 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -34,7 +34,6 @@ import org.springframework.security.oauth2.server.authorization.settings.TokenSe
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.cors.CorsConfigurationSource;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -43,18 +42,11 @@ import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
-import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Configuration
 public class AuthorizationServerConfig {
-    private final CorsConfigurationSource corsConfigurationSource;
-
-    public AuthorizationServerConfig(CorsConfigurationSource corsConfigurationSource) {
-        this.corsConfigurationSource = corsConfigurationSource;
-    }
 
     @Bean
     @Order(1)
@@ -63,7 +55,6 @@ public class AuthorizationServerConfig {
 
         http
                 .securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
-                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()
@@ -197,37 +188,36 @@ public class AuthorizationServerConfig {
 
     @Bean
     public OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer(UserDetailsService userDetailsService) {
-        return (context) -> {
-            if (context.getTokenType().getValue().equals("access_token")) {
-                context.getClaims().claims((claims) -> {
-                    if (AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())) {
-                        claims.put("client_id", context.getRegisteredClient().getClientId());
-                        claims.put("scope", context.getRegisteredClient().getScopes());
-                    }
-
-                    if (AuthorizationGrantType.AUTHORIZATION_CODE.equals(context.getAuthorizationGrantType()) ||
-                            AuthorizationGrantType.REFRESH_TOKEN.equals(context.getAuthorizationGrantType())) {
-
-                        String username = context.getPrincipal().getName();
-                        claims.put("username", username);
-
-                        try {
-                            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                            if (userDetails instanceof User user) {
-                                claims.put("user_id", user.getId().toString());
-                                Collection<? extends GrantedAuthority> authorities = user.getAuthorities();
-                                List<String> scopes = authorities.stream()
-                                        .map(GrantedAuthority::getAuthority)
-                                        .collect(Collectors.toList());
-
-                                claims.put("scope", scopes);
-                            }
-                        } catch (Exception e) {
-                            throw new TypeMismatchException(e.getMessage());
-                        }
-                    }
-                });
+        return context -> {
+            if (!OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+                return;
             }
+
+            context.getClaims().claims((claims) -> {
+                if (AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())) {
+                    claims.put("client_id", context.getRegisteredClient().getClientId());
+                    claims.put("scope", context.getAuthorizedScopes());
+                    return;
+                }
+
+                String login = context.getPrincipal().getName();
+
+                UserDetails userDetails = userDetailsService.loadUserByUsername(login);
+
+                if (!(userDetails instanceof User user)) {
+                    throw new IllegalStateException("Unexpected principal type: " + userDetails.getClass());
+                }
+
+                context.getClaims().subject(user.getId().toString());
+
+                claims.put("username", user.getUsername());
+
+                List<String> authorities = user.getAuthorities().stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .toList();
+
+                claims.put("scope", authorities);
+            });
         };
     }
 }

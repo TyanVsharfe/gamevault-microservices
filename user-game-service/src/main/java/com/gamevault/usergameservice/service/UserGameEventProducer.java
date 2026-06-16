@@ -17,7 +17,7 @@ public class UserGameEventProducer {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public void handleUserGameCompleted(UserGameEvent event) {
-        kafkaTemplate.send(userEventTopic, event);
+    public void publish(UserGameEvent event) {
+        kafkaTemplate.send(userEventTopic, event.user_id().toString(), event);
     }
 }

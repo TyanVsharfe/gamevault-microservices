@@ -25,15 +25,13 @@ spring:
       client:
         registration:
           achievement-service:
+            provider: auth-service
             client-id: achievement-service
             client-secret: achievement-secret-2025
             authorization-grant-type: client_credentials
             scope: ACHIEVEMENT_INIT
         provider:
           auth-service:
-            token-uri: http://localhost:8080/oauth2/token
-            issuer-uri: http://localhost:8080
-          achievement-service:
             issuer-uri: http://localhost:8080
       resourceserver:
         jwt:
@@ -43,7 +41,7 @@ spring:
     active: dev
 
 server:
-  port: 8081
+  port: 8083
   servlet:
     context-path: /api/v1
     session:
@@ -60,9 +58,17 @@ auth:
   service:
     url: http://localhost:8080
 
+igdb:
+  service:
+    url: ${IGDB_SERVICE_URL:http://localhost:8081/api/v1}
+
+user-game:
+  service:
+    url: ${USER_GAME_SERVICE_URL:http://localhost:8082/api/v1}
+
 init:
   achievements:
-    enabled: false
+    enabled: true
     batch-size: 1000
     users-endpoint: /users/uuids
 
@@ -73,7 +79,7 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:h2:file:./achievement-service/database
+    url: jdbc:h2:file:./.local/h2/achievement-service/database
     driver-class-name: org.h2.Driver
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect

@@ -55,7 +55,7 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:h2:file:./auth-service/database
+    url: jdbc:h2:file:./.local/h2/auth-service/database
     driver-class-name: org.h2.Driver
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect

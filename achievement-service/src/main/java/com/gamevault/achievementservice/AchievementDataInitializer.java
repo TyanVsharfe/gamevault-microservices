@@ -7,8 +7,9 @@ import com.gamevault.achievementservice.db.model.*;
 import com.gamevault.achievementservice.db.repository.*;
 import com.gamevault.achievementservice.dto.input.init.AchievementDto;
 import com.gamevault.achievementservice.enums.AchievementCategory;
-import com.gamevault.achievementservice.service.AchievementProcessorService;
+import com.gamevault.achievementservice.service.UserGameProjectionRebuildService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -22,8 +23,8 @@ import reactor.core.publisher.Mono;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @Slf4j
 @Configuration
@@ -31,17 +32,18 @@ import java.util.stream.Collectors;
 public class AchievementDataInitializer {
 
     private final AchievementRepository achievementRepository;
-    private final AchievementProcessorService achievementProcessorService;
+    private final UserGameProjectionRebuildService projectionRebuildService;
     private final UserAchievementRepository userAchievementRepository;
     private final WebClient authServiceWebClient;
     private final AchievementInitProperties properties;
 
     public AchievementDataInitializer(AchievementRepository achievementRepository,
-                                      AchievementProcessorService achievementProcessorService,
+                                      UserGameProjectionRebuildService projectionRebuildService,
                                       UserAchievementRepository userAchievementRepository,
-                                      WebClient authWebClient, AchievementInitProperties properties) {
+                                      @Qualifier("authServiceWebClient") WebClient authWebClient,
+                                      AchievementInitProperties properties) {
         this.achievementRepository = achievementRepository;
-        this.achievementProcessorService = achievementProcessorService;
+        this.projectionRebuildService = projectionRebuildService;
         this.userAchievementRepository = userAchievementRepository;
         this.authServiceWebClient = authWebClient;
         this.properties = properties;
@@ -50,7 +52,7 @@ public class AchievementDataInitializer {
     @Bean
     public CommandLineRunner initAchievements() {
         return args -> {
-            if (properties.isEnabled() && achievementRepository.count() == 0) {
+            if (properties.isEnabled()) {
                 try {
                     initializeAchievements();
                 } catch (Exception e) {
@@ -62,9 +64,7 @@ public class AchievementDataInitializer {
 
     private void initializeAchievements() throws IOException {
         log.info("Starting achievement initialization");
-        List<Achievement> achievements = loadAchievementsFromJson();
-        achievementRepository.saveAll(achievements);
-        log.info("Loaded {} achievements from JSON", achievements.size());
+        List<Achievement> achievements = loadOrGetAchievements();
 
         int page = 0;
         List<UUID> userUUIDs;
@@ -84,31 +84,25 @@ public class AchievementDataInitializer {
     }
 
     private List<UUID> fetchUserUUIDs(int page, int size) {
-        try {
-            return authServiceWebClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path(properties.getUsersEndpoint())
-                            .queryParam("page", page)
-                            .queryParam("size", size)
-                            .build())
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, response -> {
-                        log.error("Failed to fetch UUIDs. Status: {}", response.statusCode());
-                        return response.bodyToMono(String.class)
-                                .flatMap(errorBody -> Mono.error(new RuntimeException(
-                                        "Failed to fetch user UUIDs: " + response.statusCode() + " - " + errorBody)));
-                    })
-                    .bodyToMono(new ParameterizedTypeReference<List<UUID>>() {})
-                    .timeout(Duration.ofSeconds(30))
-                    .doOnSuccess(uuids -> log.info("Fetched {} UUIDs for page {}", uuids.size(), page))
-                    .doOnError(e -> log.error("Failed to fetch page {}: {}", page, e.getMessage()))
-                    .onErrorReturn(Collections.emptyList())
-                    .block();
-
-        } catch (Exception e) {
-            log.error("Error fetching user UUIDs for page {}", page, e);
-            return Collections.emptyList();
-        }
+        return authServiceWebClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path(properties.getUsersEndpoint())
+                        .queryParam("page", page)
+                        .queryParam("size", size)
+                        .build())
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, response -> {
+                    log.error("Failed to fetch UUIDs. Status: {}", response.statusCode());
+                    return response.bodyToMono(String.class)
+                            .flatMap(errorBody -> Mono.error(new RuntimeException(
+                                    "Failed to fetch user UUIDs: " + response.statusCode() + " - " + errorBody)));
+                })
+                .bodyToMono(new ParameterizedTypeReference<List<UUID>>() {})
+                .timeout(Duration.ofSeconds(30))
+                .doOnSuccess(uuids -> log.info("Fetched {} UUIDs for page {}", uuids.size(), page))
+                .doOnError(e -> log.error("Failed to fetch page {}", page, e))
+                .blockOptional()
+                .orElseThrow(() -> new IllegalStateException("Auth service returned an empty response"));
     }
 
     private void initializeUserAchievements(List<UUID> userUUIDs, List<Achievement> achievements) {
@@ -119,29 +113,48 @@ public class AchievementDataInitializer {
         List<UserAchievement> userAchievements = new ArrayList<>();
 
         for (UUID userId : userUUIDs) {
-            if (userAchievementRepository.countByUserId(userId) == 0) {
-                achievements.forEach(achievement ->
-                        userAchievements.add(new UserAchievement(userId, achievement))
-                );
-            }
+            Set<Long> assignedAchievementIds = userAchievementRepository.findByUserId(userId).stream()
+                    .map(userAchievement -> userAchievement.getAchievement().getId())
+                    .collect(Collectors.toSet());
+
+            achievements.stream()
+                    .filter(achievement -> !assignedAchievementIds.contains(achievement.getId()))
+                    .map(achievement -> new UserAchievement(userId, achievement))
+                    .forEach(userAchievements::add);
         }
 
         if (!userAchievements.isEmpty()) {
             userAchievementRepository.saveAll(userAchievements);
-            log.info("Initialized achievements for {} users", userUUIDs.size());
+            log.info("Created {} missing user achievements for {} users", userAchievements.size(), userUUIDs.size());
         }
 
-        userUUIDs.forEach(userId ->
-                CompletableFuture.runAsync(() ->
-                        achievementProcessorService.processAchievementCompletion(userId)
-                )
-        );
+        for (UUID userId : userUUIDs) {
+            projectionRebuildService.rebuildAndRecalculate(userId, properties.getBatchSize());
+        }
     }
 
     private List<Achievement> loadAchievementsFromJson() throws IOException {
         ClassPathResource resource = new ClassPathResource("achievements.json");
         List<AchievementDto> dtos = new ObjectMapper().readValue(resource.getInputStream(), new TypeReference<>() {});
         return dtos.stream().map(this::toAchievement).collect(Collectors.toList());
+    }
+
+    private List<Achievement> loadOrGetAchievements() throws IOException {
+        if (achievementRepository.count() == 0) {
+            List<Achievement> achievements = loadAchievementsFromJson();
+            List<Achievement> savedAchievements = StreamSupport.stream(
+                            achievementRepository.saveAll(achievements).spliterator(),
+                            false
+                    )
+                    .toList();
+            log.info("Loaded {} achievements from JSON", savedAchievements.size());
+            return savedAchievements;
+        }
+
+        List<Achievement> achievements = StreamSupport.stream(achievementRepository.findAll().spliterator(), false)
+                .toList();
+        log.info("Using {} existing achievements", achievements.size());
+        return achievements;
     }
 
     private Achievement toAchievement(AchievementDto dto) {

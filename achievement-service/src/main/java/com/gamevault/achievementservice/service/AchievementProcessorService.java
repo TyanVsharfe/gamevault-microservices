@@ -24,7 +24,7 @@ public class AchievementProcessorService {
     }
 
     private void checkTotalGamesCompleted(UUID user) {
-        long totalCompleted = userGameRepository.countUserGameCacheByStatusAndUser(GameStatus.Completed, user);
+        long totalCompleted = userGameRepository.countByStatusAndUser(GameStatus.COMPLETED, user);
 
         Iterable<Achievement> totalGamesAchievements =
                 achievementService.getAchievementsByCategory(AchievementCategory.TOTAL_GAMES_COMPLETED);
@@ -35,7 +35,7 @@ public class AchievementProcessorService {
     }
 
     private void checkSeriesAchievement(UUID user) {
-        Set<Long> completedGameIds = userGameRepository.findCompletedGameIdsByUser(user);
+        Set<Long> completedGameIds = userGameRepository.findGameIdsByUserAndStatus(user, GameStatus.COMPLETED);
 
         Iterable<Achievement> totalGamesAchievements =
                 achievementService.getAchievementsByCategory(AchievementCategory.SERIES_COMPLETED);

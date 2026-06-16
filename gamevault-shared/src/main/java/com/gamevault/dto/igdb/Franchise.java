@@ -1,4 +1,4 @@
-package com.gamevault.usergameservice.dto.igdb;
+package com.gamevault.dto.igdb;
 
 import java.util.List;
 

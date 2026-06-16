@@ -1,22 +1,32 @@
-package com.gamevault.usergameservice.dto.igdb;
+package com.gamevault.dto.igdb;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record IgdbGameDTO(
+public record IgdbGameDto(
         long id,
         String name,
         String summary,
-        int game_type,
+        GameType game_type,
+        ParentGame parent_game,
+        List<GameMode> game_modes,
         long first_release_date,
         Company.Cover cover,
+        List<IgdbGameDto> dlcs,
+        List<IgdbGameDto> expansions,
         List<ReleaseDate> release_dates,
         List<Genre> genres,
         List<Platform> platforms,
         List<InvolvedCompany> involved_companies,
         List<Franchise> franchises,
         List<Series> collections
-) {}
+) {
+    public IgdbGameDto {
+        if (dlcs == null) dlcs = List.of();
+        if (expansions == null) expansions = List.of();
+        if (game_modes == null) game_modes = List.of();
+    }
+}
 

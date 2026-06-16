@@ -8,7 +8,7 @@ import com.gamevault.achievementservice.service.AchievementService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,9 +31,8 @@ public class UserAchievementController {
 
     @GetMapping
     public ResponseEntity<Iterable<UserAchievementDTO>> getUserAchievements(HttpServletRequest request,
-                                                                            Authentication authentication) {
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        UUID userId = UUID.fromString(jwt.getClaim("user_id").toString());
+                                                                            @AuthenticationPrincipal Jwt jwt) {
+        UUID userId = UUID.fromString(jwt.getSubject());
         Locale locale = request.getLocale();
         String lang = locale.getLanguage();
         return ResponseEntity.ok(achievementService.getUserAchievements(userId, lang));

@@ -1,17 +1,22 @@
 package com.gamevault.igdbservice.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.gamevault.dto.igdb.IgdbGameDto;
 import com.gamevault.igdbservice.IgdbTokenManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class IgdbGameService {
+    private static final int IGDB_BATCH_SIZE = 500;
 
     private final WebClient igdbServiceWebClient;
     private final IgdbTokenManager apiClient;
@@ -47,27 +52,65 @@ public class IgdbGameService {
                 .bodyToMono(JsonNode.class).block();
     }
 
-    public JsonNode gameIGDB(String gameId) {
+    public IgdbGameDto gameIGDB(String gameId) {
         return igdbServiceWebClient.post()
                 .uri("https://api.igdb.com/v4/games")
                 .header("Client-ID", apiClient.getClient_id())
                 .header("Authorization", "Bearer " + apiClient.getAccess_token())
                 .body(BodyInserters.fromValue
                         ("fields name,cover.url, release_dates.y, "
-                                + "game_type, storyline, summary, genres.name, first_release_date, platforms.abbreviation, "
-                                + "collections.name, collections.games.name, "
-                                + "collections.games.slug, collections.games.cover.url, "
-                                //+ "franchises.name, franchises.slug, franchises.games.name, franchises.games.cover.url, "
-                                //+ "franchises.games.platforms.abbreviation, franchises.games.release_dates.y, "
-                                + "involved_companies.company.name, involved_companies.developer, involved_companies.supporting, involved_companies.publisher; "
-                                + " where id = " + gameId + "; sort franchises.games.release_dates.y desc;"))
+                                + "game_type.id, game_type.type, parent_game.name, game_modes.name, game_modes.slug, summary, genres.name, first_release_date, platforms.abbreviation,"
+                                + "collections.name, collections.slug, collections.games.name, collections.games.slug, collections.games.cover.url, collections.games.game_type.type,"
+              /*                  + "franchises.name, franchises.slug, franchises.games.name, franchises.games.cover.url,"
+                                + "franchises.games.platforms.abbreviation, franchises.games.release_dates.y,"*/
+                                + "involved_companies.company.name, involved_companies.company.slug, involved_companies.developer, involved_companies.publisher,"
+                                + "dlcs.name, dlcs.cover.url, dlcs.game_type.id, dlcs.game_type.type, dlcs.game_status.status, dlcs.summary, dlcs.game_modes.name, dlcs.game_modes.slug, standalone_expansions,"
+                                + "expansions.name, expansions.game_type.type, expansions.game_status.status, expansions.cover.url, expansions.summary, expansions.game_modes.name, expansions.game_modes.slug;"
+                                + "where id = " + gameId + "; sort franchises.games.release_dates.y desc;"))
                 .retrieve()
-                .bodyToMono(JsonNode.class).block();
+                .bodyToFlux(IgdbGameDto.class)
+                .next().blockOptional()
+                .orElse(null);
+    }
+
+    public List<JsonNode> gamesByIds(Set<Long> gameIds) {
+        if (gameIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> ids = new ArrayList<>(gameIds);
+        List<JsonNode> games = new ArrayList<>();
+        for (int from = 0; from < ids.size(); from += IGDB_BATCH_SIZE) {
+            int to = Math.min(from + IGDB_BATCH_SIZE, ids.size());
+            games.addAll(fetchGameSummaries(ids.subList(from, to)));
+        }
+        return games;
+    }
+
+    private List<JsonNode> fetchGameSummaries(List<Long> gameIds) {
+        String ids = gameIds.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+
+        return igdbServiceWebClient.post()
+                .uri("https://api.igdb.com/v4/games")
+                .header("Client-ID", apiClient.getClient_id())
+                .header("Authorization", "Bearer " + apiClient.getAccess_token())
+                .body(BodyInserters.fromValue(
+                        "fields id,name,cover.url,first_release_date;"
+                                + "where id = (" + ids + ");"
+                                + "limit " + gameIds.size() + ";"
+                ))
+                .retrieve()
+                .bodyToFlux(JsonNode.class)
+                .collectList()
+                .blockOptional()
+                .orElseGet(List::of);
     }
 
     public JsonNode gameSeries(String seriesTitle) {
         return igdbServiceWebClient.post()
-                .uri("https://api.igdb.com/v4/franchises")
+                .uri("https://api.igdb.com/v4/collections")
                 .header("Client-ID", apiClient.getClient_id())
                 .header("Authorization", "Bearer " + apiClient.getAccess_token())
                 .body(BodyInserters.fromValue

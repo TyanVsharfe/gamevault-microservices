@@ -16,8 +16,20 @@ public class OAuth2Config {
             ClientRegistrationRepository clientRegistrationRepository,
             OAuth2AuthorizedClientService authorizedClientService) {
 
-        return new AuthorizedClientServiceOAuth2AuthorizedClientManager(
-                clientRegistrationRepository, authorizedClientService);
+        OAuth2AuthorizedClientProvider authorizedClientProvider =
+                OAuth2AuthorizedClientProviderBuilder.builder()
+                        .clientCredentials()
+                        .build();
+
+        AuthorizedClientServiceOAuth2AuthorizedClientManager manager =
+                new AuthorizedClientServiceOAuth2AuthorizedClientManager(
+                        clientRegistrationRepository,
+                        authorizedClientService
+                );
+
+        manager.setAuthorizedClientProvider(authorizedClientProvider);
+
+        return manager;
     }
 
     @Bean
@@ -31,6 +43,23 @@ public class OAuth2Config {
 
         return webClientBuilder
                 .baseUrl(authServiceUrl)
+                .apply(oauth2Client.oauth2Configuration())
+                .build();
+    }
+
+    @Bean
+    public WebClient userGameServiceWebClient(
+            WebClient.Builder webClientBuilder,
+            OAuth2AuthorizedClientManager authorizedClientManager,
+            @Value("${user-game.service.url}") String userGameServiceUrl
+    ) {
+        ServletOAuth2AuthorizedClientExchangeFilterFunction oauth2Client =
+                new ServletOAuth2AuthorizedClientExchangeFilterFunction(authorizedClientManager);
+
+        oauth2Client.setDefaultClientRegistrationId("achievement-service");
+
+        return webClientBuilder
+                .baseUrl(userGameServiceUrl)
                 .apply(oauth2Client.oauth2Configuration())
                 .build();
     }

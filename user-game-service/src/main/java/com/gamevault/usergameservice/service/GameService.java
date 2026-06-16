@@ -1,19 +1,26 @@
 package com.gamevault.usergameservice.service;
 
+import com.gamevault.enums.GameModesIGDB;
+import com.gamevault.enums.IgdbGameType;
 import com.gamevault.usergameservice.db.model.Game;
 import com.gamevault.usergameservice.db.repository.GameRepository;
-import com.gamevault.usergameservice.dto.igdb.IgdbGameDTO;
+import com.gamevault.usergameservice.dto.GameForm;
+import com.gamevault.dto.igdb.GameMode;
+import com.gamevault.dto.igdb.IgdbGameDto;
 import com.gamevault.usergameservice.exception.GameNotFoundInIgdbException;
 import com.gamevault.usergameservice.exception.IgdbFetchException;
-import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class GameService {
     @Value("${igdb.service.url}")
@@ -31,32 +38,137 @@ public class GameService {
         return gameRepository.findById(id);
     }
 
+    @jakarta.transaction.Transactional
+    public Game getOrCreate(Long igdbId) {
+        Optional<Game> existingGame = gameRepository.findById(igdbId);
+        if (existingGame.isPresent()) {
+            log.debug("Game with igdbId={} found in database", igdbId);
+            return existingGame.get();
+        }
+
+        log.info("Game with igdbId={} not found in database, fetching from IGDB", igdbId);
+        return add(igdbId);
+    }
+
+    @jakarta.transaction.Transactional
+    public List<Game> getOrCreateBatch(List<Long> igdbIds) {
+
+        List<Game> existingGames = (List<Game>) gameRepository.findAllById(igdbIds);
+        List<Game> result = new ArrayList<>(existingGames);
+
+        List<Long> existingIds = existingGames.stream()
+                .map(Game::getIgdbId)
+                .toList();
+
+        List<Long> missingIds = igdbIds.stream()
+                .filter(id -> !existingIds.contains(id))
+                .toList();
+
+        if (!missingIds.isEmpty()) {
+            log.info("Found {} games missing in database, fetching from IGDB", missingIds.size());
+            for (Long missingId : missingIds) {
+                try {
+                    Game game = add(missingId);
+                    result.add(game);
+                } catch (Exception e) {
+                    log.error("Failed to add game with igdbId={}: {}", missingId, e.getMessage());
+                }
+            }
+        }
+
+        return result;
+    }
+
     @Transactional
     public Game add(Long igdbId) {
         try {
-            List<IgdbGameDTO> igdbGameJson = userGameServiceWebClient.get()
+            IgdbGameDto igdbGameDto = userGameServiceWebClient.get()
                     .uri(igdbServiceUrl + "/igdb/games/" + igdbId)
                     .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<List<IgdbGameDTO>>() {
+                    .bodyToMono(new ParameterizedTypeReference<IgdbGameDto>() {
                     }).block();
 
-            if (igdbGameJson == null || igdbGameJson.isEmpty()) {
+            if (igdbGameDto == null) {
                 throw new GameNotFoundInIgdbException("Game with id " + igdbId + " not found in IGDB.");
             }
 
-            IgdbGameDTO igdbGameDto = igdbGameJson.get(0);
+            if (igdbGameDto.game_modes().isEmpty()) {
+                log.info("Game with igdbId={} cannot be added to database because haven't game modes", igdbGameDto.id());
+                throw new IllegalArgumentException("Game with igdbId=" + igdbGameDto.id() + " cannot be added to database because haven't game modes");
+            }
 
-            Game game = new Game();
-            game.setIgdbId(igdbGameDto.id());
-            game.setTitle(igdbGameDto.name());
-            game.setDescription(igdbGameDto.summary());
-            game.setCoverUrl(igdbGameDto.cover().url());
+            List<GameModesIGDB> modes = extractGameModes(igdbGameDto.game_modes());
+
+            Game game = new Game(new GameForm(
+                    igdbGameDto.id(),
+                    igdbGameDto.name(),
+                    igdbGameDto.cover().url(),
+                    igdbGameDto.summary(),
+                    IgdbGameType.fromNumber(igdbGameDto.game_type().id()), modes));
+            Game saved = gameRepository.save(game);
+            log.info("Game with igdbId={} successfully added", igdbId);
+
+            log.info("Game with igdbId={} have dlcs: {}", igdbId, igdbGameDto.dlcs().size());
+            if (!igdbGameDto.dlcs().isEmpty()) {
+                List<Game> dlcs = processAdditionalContent(igdbGameDto.dlcs(), saved, "DLC");
+                saved.addDlcs(dlcs);
+            }
+
+            log.info("Game with igdbId={} have expansions: {}", igdbId, igdbGameDto.expansions().size());
+            if (!igdbGameDto.expansions().isEmpty()) {
+                List<Game> expansions = processAdditionalContent(igdbGameDto.expansions(), saved, "Expansion");
+                saved.addDlcs(expansions);
+            }
 
             return gameRepository.save(game);
 
         } catch (Exception e) {
             throw new IgdbFetchException("Failed to fetch IGDB game", e);
         }
+    }
+
+    private List<GameModesIGDB> extractGameModes(List<GameMode> gameModes) {
+        List<GameModesIGDB> modes = new ArrayList<>();
+        for (GameMode mode : gameModes) {
+            modes.add(GameModesIGDB.fromJson(mode.slug()));
+        }
+        return modes;
+    }
+
+    private List<Game> processAdditionalContent(List<IgdbGameDto> items, Game parentGame, String type) {
+        List<Game> result = new ArrayList<>();
+
+        for (IgdbGameDto item : items) {
+            Optional<Game> existing = gameRepository.findById(item.id());
+            if (existing.isPresent()) {
+                log.warn("{} with igdbId={} is already in the database", type, item.id());
+                continue;
+            }
+
+            if (item.game_modes() == null) {
+                log.info("{} with igdbId={} skipped: no game modes", type, item.id());
+                continue;
+            }
+
+            log.info("{} with igdbId={} not found in database, adding", type, item.id());
+
+            List<GameModesIGDB> modes = extractGameModes(item.game_modes());
+
+            Game dlcOrExpansion = new Game(new GameForm(
+                    item.id(),
+                    item.name(),
+                    item.cover().url(),
+                    item.summary(),
+                    IgdbGameType.fromNumber(item.game_type().id()),
+                    modes),
+                    parentGame);
+
+            Game saved = gameRepository.save(dlcOrExpansion);
+            result.add(saved);
+            log.info("{} with igdbId={} successfully added", type, item.id());
+        }
+
+        return result;
     }
 
     @Transactional

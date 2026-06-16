@@ -47,7 +47,7 @@ spring:
     active: dev
 
 server:
-  port: 8083
+  port: 8082
   servlet:
     context-path: /api/v1
     session:
@@ -62,7 +62,7 @@ app:
 
 igdb:
   service:
-    url: http://localhost:8082/api/v1
+    url: http://localhost:8081/api/v1
 
 ---
 
@@ -71,7 +71,7 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:h2:file:./user-game-service/database
+    url: jdbc:h2:file:./.local/h2/user-game-service/database
     driver-class-name: org.h2.Driver
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect

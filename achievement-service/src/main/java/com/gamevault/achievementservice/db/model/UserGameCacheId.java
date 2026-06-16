@@ -5,13 +5,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.io.Serializable;
 import java.util.UUID;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @EqualsAndHashCode
-public class UserGameCacheId {
+public class UserGameCacheId implements Serializable {
     private UUID user;
-    private Long game_id;
+    private Long gameId;
 }

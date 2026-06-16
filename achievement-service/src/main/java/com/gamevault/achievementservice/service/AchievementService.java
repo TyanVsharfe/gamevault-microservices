@@ -1,11 +1,13 @@
 package com.gamevault.achievementservice.service;
 
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.gamevault.achievementservice.db.model.*;
 import com.gamevault.achievementservice.db.repository.*;
 import com.gamevault.achievementservice.dto.input.*;
 import com.gamevault.achievementservice.dto.output.*;
 import com.gamevault.achievementservice.enums.AchievementCategory;
+import com.gamevault.enums.GameStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -13,7 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -22,10 +26,22 @@ import java.util.stream.Collectors;
 public class AchievementService {
     private final AchievementRepository achievementRepository;
     private final UserAchievementRepository userAchievementRepository;
+    private final UserGameCacheRepository userGameCacheRepository;
+    private final AchievementMapper achievementMapper;
+    private final IgdbGameClient igdbGameClient;
 
-    public AchievementService(AchievementRepository achievementRepository, UserAchievementRepository userAchievementRepository) {
+    public AchievementService(
+            AchievementRepository achievementRepository,
+            UserAchievementRepository userAchievementRepository,
+            UserGameCacheRepository userGameCacheRepository,
+            AchievementMapper achievementMapper,
+            IgdbGameClient igdbGameClient
+    ) {
         this.achievementRepository = achievementRepository;
         this.userAchievementRepository = userAchievementRepository;
+        this.userGameCacheRepository = userGameCacheRepository;
+        this.achievementMapper = achievementMapper;
+        this.igdbGameClient = igdbGameClient;
     }
 
     public Iterable<Achievement> getAllAchievements() {
@@ -38,6 +54,12 @@ public class AchievementService {
 
     public Iterable<UserAchievementDTO> getUserAchievements(UUID userId, String lang) {
         List<UserAchievement> userAchievements = userAchievementRepository.findUserAchievementsByUserId(userId);
+        List<Achievement> achievements = userAchievements.stream()
+                .map(UserAchievement::getAchievement)
+                .toList();
+        Set<Long> completedGameIds =
+                userGameCacheRepository.findGameIdsByUserAndStatus(userId, GameStatus.COMPLETED);
+        Map<Long, JsonNode> gamesById = igdbGameClient.getGamesByIds(achievementMapper.collectAllGameIds(achievements));
 
         return userAchievements.stream().map(a -> {
             List<AchievementTranslation> translations = a.getAchievement().getTranslations();
@@ -52,29 +74,12 @@ public class AchievementService {
                             .orElse(translations.get(0))
             );
 
-            AchievementDTO achievementDTO = null;
-            if (a.getAchievement() instanceof CountAchievement countAchievement) {
-                achievementDTO = new AchievementDTO(
-                        a.getAchievement().getId(),
-                        tr.getName(),
-                        tr.getDescription(),
-                        a.getAchievement().getCategory().name(),
-                        a.getAchievement().getExperiencePoints(),
-                        countAchievement.getRequiredCount(),
-                        a.getAchievement().getIconUrl()
-                );
-            }
-            if (a.getAchievement() instanceof SeriesAchievement seriesAchievement) {
-                achievementDTO = new AchievementDTO(
-                        a.getAchievement().getId(),
-                        tr.getName(),
-                        tr.getDescription(),
-                        a.getAchievement().getCategory().name(),
-                        a.getAchievement().getExperiencePoints(),
-                        seriesAchievement.getRequiredGameIds().size(),
-                        a.getAchievement().getIconUrl()
-                );
-            }
+            AchievementDTO achievementDTO = achievementMapper.toDto(
+                    a.getAchievement(),
+                    tr,
+                    completedGameIds,
+                    gamesById
+            );
 
             return new UserAchievementDTO(
                     a.getId(),

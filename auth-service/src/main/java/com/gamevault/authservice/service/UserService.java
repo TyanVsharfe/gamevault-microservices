@@ -72,7 +72,7 @@ public class UserService implements UserDetailsService {
     @PostConstruct
     public void initTestUser() {
         if (userRepository.findByUsername("test").isEmpty()) {
-            User testUser = new User("test", passwordEncoder.encode("test"), List.of("ROLE_USER"));
+            User testUser = new User("test", passwordEncoder.encode("test"), List.of("USER"));
             userRepository.save(testUser);
         }
     }

@@ -1,8 +1,10 @@
-package com.gamevault.usergameservice.dto.igdb;
+package com.gamevault.dto.igdb;
 
 import java.util.List;
+
 public record Series(
         int id,
         String name,
-        List<IgdbGameDTO> games
+        String slug,
+        List<IgdbGameDto> games
 ) {}
