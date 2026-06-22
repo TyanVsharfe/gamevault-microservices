@@ -1,4 +1,4 @@
-package com.gamevault.usergameservice.dto.output;
+package com.gamevault.dto;
 
 import java.util.UUID;
 

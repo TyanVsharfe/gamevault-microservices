@@ -9,7 +9,6 @@ public class WebClientConfig {
 
     @Bean
     public WebClient igdbServiceWebClient(WebClient.Builder webClientBuilder) {
-
         return webClientBuilder
                 .build();
     }

@@ -1,11 +1,11 @@
 package com.gamevault.usergameservice.db.repository;
 
 import com.gamevault.usergameservice.dto.input.UserGamesFilterParams;
-import com.gamevault.usergameservice.dto.output.GameListReference;
+import com.gamevault.dto.GameListReference;
 import com.gamevault.usergameservice.db.model.UserGame;
 import com.gamevault.usergameservice.dto.output.UserModeDto;
-import com.gamevault.usergameservice.dto.output.db.UserGameBaseData;
-import com.gamevault.usergameservice.dto.output.db.UserGameBatchData;
+import com.gamevault.dto.db.UserGameBaseData;
+import com.gamevault.dto.db.UserGameBatchData;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

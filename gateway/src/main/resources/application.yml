@@ -39,11 +39,6 @@ spring:
               predicates:
                 - Path=/api/authenticate
 
-            - id: auth-api
-              uri: http://localhost:8080
-              predicates:
-                - Path=/api/auth/**
-
             - id: igdb-service
               uri: http://localhost:8081
               predicates:
@@ -54,10 +49,32 @@ spring:
               predicates:
                 - Path=/api/v1/users/games/**
 
+            - id: user-game-list
+              uri: http://localhost:8082
+              predicates:
+                - Path=/api/v1/users/game-lists/**
+
+            - id: game-query
+              uri: http://localhost:8082
+              predicates:
+                - Path=/api/v1/games/**
+
             - id: achievement-service
               uri: http://localhost:8083
               predicates:
                 - Path=/api/v1/users/achievements/**
+
+            - id: steam-import-service
+              uri: http://localhost:8084
+              predicates:
+                - Path=/api/v1/steam-import/**
+
+            - id: auth-api
+              uri: http://localhost:8080
+              predicates:
+                - Path=/api/v1/users/**
+              filters:
+                - RewritePath=/api/v1/(?<segment>.*), /${segment}
 
 server:
   port: 8088

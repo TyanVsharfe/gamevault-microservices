@@ -123,6 +123,27 @@ public class AuthorizationServerConfig {
             clientRepository.save(achievementClient);
         }
 
+        if (clientRepository.findByClientId("steam-import-service") == null) {
+            RegisteredClient achievementClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                    .clientId("steam-import-service")
+                    .clientSecret(passwordEncoder.encode("steam-import-secret-2025"))
+                    .clientAuthenticationMethods(methods -> {
+                        methods.add(ClientAuthenticationMethod.CLIENT_SECRET_BASIC);
+                        methods.add(ClientAuthenticationMethod.CLIENT_SECRET_POST);
+                    })
+                    .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                    .scope("STEAM_IMPORT")
+                    .clientSettings(ClientSettings.builder()
+                            .requireAuthorizationConsent(false)
+                            .build())
+                    .tokenSettings(TokenSettings.builder()
+                            .accessTokenTimeToLive(Duration.ofHours(1))
+                            .build())
+                    .build();
+
+            clientRepository.save(achievementClient);
+        }
+
         if (clientRepository.findByClientId("user-client") == null) {
             RegisteredClient userClient = RegisteredClient.withId(UUID.randomUUID().toString())
                     .clientId("user-client")

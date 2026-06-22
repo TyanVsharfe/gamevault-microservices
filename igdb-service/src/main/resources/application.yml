@@ -29,11 +29,18 @@ spring:
             client-secret: achievement-secret-2025
             authorization-grant-type: client_credentials
             scope: ACHIEVEMENT_INIT
+          steam-import-service:
+            client-id: steam-import-service
+            client-secret: steam-import-secret-2025
+            authorization-grant-type: client_credentials
+            scope: STEAM_IMPORT
         provider:
           auth-service:
             token-uri: http://localhost:8080/oauth2/token
             issuer-uri: http://localhost:8080
           achievement-service:
+            issuer-uri: http://localhost:8080
+          steam-import-uri:
             issuer-uri: http://localhost:8080
       resourceserver:
         jwt:
@@ -52,8 +59,8 @@ server:
 
 igdb:
   client:
-    id: c5x4cwm5mp474yt174al5uwv11zuvx
-    secret: zp3to8x9x28qihvjf0fh0ocx6deg7g
+    id: ${IGDB_CLIENT_ID}
+    secret: ${IGDB_CLIENT_SECRET}
 
 ---
 

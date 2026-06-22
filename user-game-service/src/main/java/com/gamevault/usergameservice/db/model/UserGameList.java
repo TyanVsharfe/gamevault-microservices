@@ -1,6 +1,7 @@
 package com.gamevault.usergameservice.db.model;
 
 import com.gamevault.usergameservice.dto.input.UserGameListForm;
+import com.gamevault.usergameservice.dto.input.update.UserGameListUpdateForm;
 import com.gamevault.usergameservice.dto.output.UserGameListOutput;
 import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
@@ -106,6 +107,18 @@ public class UserGameList extends BaseEntity {
                 this.items,
                 this.isOwnedBy(currentUser)
         );
+    }
+
+    public void update(UserGameListUpdateForm form) {
+        if (form.name() != null) {
+            this.name = form.name();
+        }
+        if (form.description() != null) {
+            this.description = form.description();
+        }
+        if (form.isPublic() != null) {
+            this.isPublic = form.isPublic();
+        }
     }
 
     public void addGame(Game game, Integer order) {

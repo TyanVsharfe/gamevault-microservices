@@ -38,7 +38,7 @@ public class GameService {
         return gameRepository.findById(id);
     }
 
-    @jakarta.transaction.Transactional
+    @Transactional
     public Game getOrCreate(Long igdbId) {
         Optional<Game> existingGame = gameRepository.findById(igdbId);
         if (existingGame.isPresent()) {
@@ -50,7 +50,7 @@ public class GameService {
         return add(igdbId);
     }
 
-    @jakarta.transaction.Transactional
+    @Transactional
     public List<Game> getOrCreateBatch(List<Long> igdbIds) {
 
         List<Game> existingGames = (List<Game>) gameRepository.findAllById(igdbIds);

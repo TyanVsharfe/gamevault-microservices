@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: steam-import-service
+
+  security:
+    oauth2:
+      client:
+        registration:
+          steam-import-service:
+            provider: auth-service
+            client-id: steam-import-service
+            client-secret: steam-import-secret-2025
+            authorization-grant-type: client_credentials
+            scope: STEAM_IMPORT
+        provider:
+          auth-service:
+            token-uri: http://localhost:8080/oauth2/token
+            issuer-uri: http://localhost:8080
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080
+
+user-game:
+  service:
+    url: ${USER_GAME_SERVICE_URL:http://localhost:8082/api/v1}
+
+igdb:
+  service:
+    url: ${IGDB_SERVICE_URL:http://localhost:8081/api/v1}
+
+steam:
+  api:
+    key: ${STEAM_API_KEY}
+
+server:
+  port: 8084
+  servlet:
+    context-path: /api/v1
+    session:
+      cookie:
+        same-site: strict

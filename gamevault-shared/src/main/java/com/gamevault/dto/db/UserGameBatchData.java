@@ -1,8 +1,8 @@
-package com.gamevault.usergameservice.dto.output.db;
+package com.gamevault.dto.db;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.gamevault.dto.GameListReference;
 import com.gamevault.enums.GameStatus;
-import com.gamevault.usergameservice.dto.output.GameListReference;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

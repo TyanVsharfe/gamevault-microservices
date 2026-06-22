@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -23,8 +24,12 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(registry -> registry
+                        .requestMatchers("/internal/users/*/games/import").hasAuthority("SCOPE_STEAM_IMPORT")
+                        .requestMatchers("/internal/users/*/games/batch-data").hasAuthority("SCOPE_STEAM_IMPORT")
                         .requestMatchers("/internal/**").hasAuthority("SCOPE_ACHIEVEMENT_INIT")
-                        .requestMatchers("/users/games/**").hasAnyAuthority("SCOPE_USER", "SCOPE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/games/**").permitAll()
+                        .requestMatchers("/users/games/**").hasAnyAuthority("SCOPE_USER")
+                        .requestMatchers("/users/game-lists/**").hasAnyAuthority("SCOPE_USER")
                         .anyRequest().authenticated())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

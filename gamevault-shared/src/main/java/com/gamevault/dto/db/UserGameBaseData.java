@@ -1,4 +1,4 @@
-package com.gamevault.usergameservice.dto.output.db;
+package com.gamevault.dto.db;
 
 import com.gamevault.enums.GameStatus;
 
